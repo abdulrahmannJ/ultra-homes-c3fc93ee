@@ -13,7 +13,7 @@ export type ActivityLog = {
   entity: string;
   entity_id: string | null;
   summary: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, string | number | boolean | null> | null;
   created_at: string;
 };
 
