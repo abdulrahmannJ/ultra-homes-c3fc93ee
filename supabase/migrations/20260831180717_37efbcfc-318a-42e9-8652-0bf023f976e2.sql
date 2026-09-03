@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.generate_rent_charges() FROM authenticated;
