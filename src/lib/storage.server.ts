@@ -4,6 +4,24 @@ export const PROPERTY_BUCKET = "property-images";
 
 const SIGN_TTL = 60 * 60; // 1 hour
 
+/**
+ * Public object URL for the bucket. Used as a fallback when signing is not
+ * possible (no service-role key and no signed-URL grant for the caller), which
+ * would otherwise leave the browser with a bare storage path and a broken img.
+ */
+export function publicUrl(path: string) {
+  const base = process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"] ?? "";
+  if (!base) return path;
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return `${base}/storage/v1/object/public/${PROPERTY_BUCKET}/${encoded}`;
+}
+
+/** Signed URL when available, otherwise the public object URL. */
+export function resolveImageUrl(value: string, map: Map<string, string>) {
+  if (!isStoragePath(value)) return value;
+  return map.get(value) ?? publicUrl(value);
+}
+
 /** True when the value is a storage object path (not an external/static URL). */
 export function isStoragePath(value: string | null | undefined): value is string {
   if (!value) return false;
@@ -96,11 +114,9 @@ export async function withSignedImages<T extends WithImages>(rows: T[], client?:
   }
   const map = await signPaths(all, client);
 
-  if (map.size === 0) return rows;
-
   return rows.map((row) => ({
     ...row,
-    featured_image: row.featured_image ? (map.get(row.featured_image) ?? row.featured_image) : row.featured_image,
-    images: (row.images ?? []).map((img) => map.get(img) ?? img),
+    featured_image: row.featured_image ? resolveImageUrl(row.featured_image, map) : row.featured_image,
+    images: (row.images ?? []).map((img) => resolveImageUrl(img, map)),
   }));
 }
