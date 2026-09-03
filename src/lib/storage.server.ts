@@ -81,13 +81,24 @@ export async function ensurePropertyBucket() {
 export async function signPaths(values: Array<string | null | undefined>, client?: unknown) {
   const map = new Map<string, string>();
   const paths = [...new Set(values.filter(isStoragePath))];
+  if (paths.length === 0) return map;
+
   const signer = await storageClient(client);
-  if (paths.length === 0 || !signer) return map;
+  if (signer) {
+    try {
+      const { data } = await signer.storage.from(PROPERTY_BUCKET).createSignedUrls(paths, SIGN_TTL);
+      for (const row of data ?? []) {
+        if (row.signedUrl && row.path) map.set(row.path, row.signedUrl);
+      }
+    } catch {
+      // fall through to public URLs below
+    }
+  }
 
-  const { data } = await signer.storage.from(PROPERTY_BUCKET).createSignedUrls(paths, SIGN_TTL);
-
-  for (const row of data ?? []) {
-    if (row.signedUrl && row.path) map.set(row.path, row.signedUrl);
+  // Anything that could not be signed still needs a usable URL, otherwise the
+  // browser receives a bare storage path and renders a broken image.
+  for (const path of paths) {
+    if (!map.has(path)) map.set(path, publicUrl(path));
   }
   return map;
 }
